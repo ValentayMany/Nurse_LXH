@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="lo">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Import Excel — ຕາຕາລາງເວນ</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <header class="app-header">
+    <h1>Import ຈາກ Excel</h1>
+    <nav class="nav-links" id="app-nav"></nav>
+    <div>
+      <span class="user-badge" id="user-info"></span>
+      <button type="button" class="secondary" id="btn-logout" style="margin-left:0.5rem;padding:0.3rem 0.6rem;font-size:0.8rem">ອອກ</button>
+    </div>
+  </header>
+  <main>
+    <div class="card">
+      <h2 class="page-title">ນຳເຂົ້າຕາຕາລາງເດືອນ 6/2026</h2>
+      <ol style="margin:1rem 0 1rem 1.25rem;line-height:1.8;color:var(--text)">
+        <li>ແກ້ <code>.env</code> ໃຫ້ຄົບ (anon + service key ຍາວๆ) — ເບິ່ງ <code>.env.example</code></li>
+        <li>ຮັນ SQL ໃນ <code>supabase/schema.sql</code> ຖ້າຍັງບໍ່ມີຕາຕາລາງ</li>
+        <li>ສ້າງ user ໃນ Supabase Auth ແລະແຖວໃນ <code>app_users</code> role=admin</li>
+        <li>ຕິດຕັ້ງ: <code>pip install openpyxl supabase python-dotenv</code></li>
+        <li>ຮັນຄຳສັ່ງ:</li>
+      </ol>
+      <pre style="background:#1e293b;color:#e2e8f0;padding:1rem;border-radius:8px;overflow:auto;font-size:0.85rem">cd nurse-schedule
+python scripts/import-from-xlsx.py "d:\Luckxay_Hospital\ID\ອັບເດດຕາຕາລາງເດືອນ6.xlsx" --year 2026 --month 6
+
+# ທົດກ່ອນ:
+python scripts/import-from-xlsx.py "..." --year 2026 --month 6 --dry-run</pre>
+      <p style="margin-top:1rem"><a href="/">← ກັບຕາຕາລາງເວນ</a></p>
+    </div>
+  </main>
+  <script type="module">
+    import { requireAuth, renderNav, logout } from '/js/auth.js'
+    await requireAuth({ adminOnly: true })
+    renderNav('/')
+    document.getElementById('btn-logout').onclick = logout
+  </script>
+</body>
+</html>

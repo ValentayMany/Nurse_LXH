@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="lo">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ບຸກຄະລາກອນ — ຕາຕາລາງເວນພະຍາບານ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Lao:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <header class="app-header">
+    <h1>ຈັດການບຸກຄະລາກອນ</h1>
+    <nav class="nav-links" id="app-nav"></nav>
+    <div>
+      <span class="user-badge" id="user-info"></span>
+      <button type="button" class="secondary" id="btn-logout" style="margin-left:0.5rem;padding:0.3rem 0.6rem;font-size:0.8rem">ອອກ</button>
+    </div>
+  </header>
+  <main>
+    <div class="card" id="add-form" hidden>
+      <h2 class="page-title">ເພີ່ມພະຍາບານໃໝ່</h2>
+      <div class="form-row">
+        <div style="flex:1;min-width:200px">
+          <label for="staff-name">ຊື່ ແລະ ນາມສະກຸນ</label>
+          <input type="text" id="staff-name" placeholder="ນ. ຊື່..." style="width:100%">
+        </div>
+        <div>
+          <label for="staff-position">ຕຳແໜ່ງ</label>
+          <select id="staff-position">
+            <option value="Nurse">Nurse</option>
+            <option value="Doctor">Doctor</option>
+            <option value="Head Nurse">Head Nurse</option>
+          </select>
+        </div>
+        <button type="button" id="btn-add">ເພີ່ມ</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2 class="page-title">ລາຍຊື່ພະຍາບານ / ແພດ</h2>
+      <p class="readonly-hint" id="staff-hint"></p>
+      <div id="content"><p class="loading">ກຳລັງໂຫຼດ...</p></div>
+    </div>
+  </main>
+  <script type="module">
+    import { requireAuth, renderNav, isAdmin, logout } from '/js/auth.js'
+    import { staffApi } from '/js/api.js'
+
+    await requireAuth()
+    renderNav('/staff')
+    document.getElementById('btn-logout').onclick = logout
+
+    if (isAdmin()) {
+      document.getElementById('add-form').hidden = false
+      document.getElementById('staff-hint').textContent = 'Admin ສາມາດເພີ່ມ ຫຼື ລຶບບຸກຄະລາກອນ'
+      document.getElementById('btn-add').onclick = addStaff
+    } else {
+      document.getElementById('staff-hint').textContent = 'ໂໝດເບິ່ງຢ່າງດຽວ'
+    }
+
+    load()
+
+    async function load() {
+      const content = document.getElementById('content')
+      try {
+        const res = await staffApi.list()
+        const list = res.data || []
+        if (!list.length) {
+          content.innerHTML = '<p class="empty-state">ຍັງບໍ່ມີຂໍ້ມູນ</p>'
+          return
+        }
+        content.innerHTML = `<table class="data-table"><thead>
+          <tr><th>#</th><th>ຊື່</th><th>ຕຳແໜ່ງ</th><th>ແຜນກ</th>${isAdmin() ? '<th></th>' : ''}</tr>
+        </thead><tbody>${list.map((s, i) => `<tr>
+          <td>${i + 1}</td>
+          <td>${esc(s.name)}</td>
+          <td>${esc(s.position)}</td>
+          <td>${esc(s.department || '—')}</td>
+          ${isAdmin() ? `<td><button type="button" class="danger" data-id="${s.id}" style="padding:0.25rem 0.5rem;font-size:0.8rem">ລຶບ</button></td>` : ''}
+        </tr>`).join('')}</tbody></table>`
+
+        if (isAdmin()) {
+          content.querySelectorAll('button[data-id]').forEach(btn => {
+            btn.onclick = () => removeStaff(btn.dataset.id, btn.closest('tr').querySelector('td:nth-child(2)').textContent)
+          })
+        }
+      } catch (e) {
+        content.innerHTML = `<p class="error-msg">${e.message}</p>`
+      }
+    }
+
+    async function addStaff() {
+      const name = document.getElementById('staff-name').value.trim()
+      if (!name) { alert('ກະລຸນາໃສ່ຊື່'); return }
+      try {
+        await staffApi.add({
+          name,
+          position: document.getElementById('staff-position').value
+        })
+        document.getElementById('staff-name').value = ''
+        load()
+      } catch (e) {
+        alert(e.message)
+      }
+    }
+
+    async function removeStaff(id, name) {
+      if (!confirm(`ລຶບ "${name}" ອອກຈາກຕາຕາລາງ?`)) return
+      try {
+        await staffApi.remove(id)
+        load()
+      } catch (e) {
+        alert(e.message)
+      }
+    }
+
+    function esc(s) {
+      const d = document.createElement('div')
+      d.textContent = s ?? ''
+      return d.innerHTML
+    }
+  </script>
+</body>
+</html>

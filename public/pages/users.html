@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="lo">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ຜູ້ໃຊ້ລະບົບ — ຕາຕາລາງເວນພະຍາບານ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Lao:wght@400;600;700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+
+<body>
+  <header class="app-header">
+    <h1>ຈັດການຜູ້ໃຊ້</h1>
+    <nav class="nav-links" id="app-nav"></nav>
+    <div>
+      <span class="user-badge" id="user-info"></span>
+      <button type="button" class="secondary" id="btn-logout"
+        style="margin-left:0.5rem;padding:0.3rem 0.6rem;font-size:0.8rem">ອອກ</button>
+    </div>
+  </header>
+  <main>
+    <div class="card">
+      <h2 class="page-title">ຜູ້ໃຊ້ລະບົບ</h2>
+      <p class="readonly-hint">ສ້າງບັນຊີໃໝ່ຜ່ານ Supabase Auth ແລ້ວເພີ່ມໃນ app_users</p>
+      <div id="content">
+        <p class="loading">ກຳລັງໂຫຼດ...</p>
+      </div>
+    </div>
+  </main>
+  <script type="module">
+    import { requireAuth, renderNav, logout } from '/js/auth.js'
+    import { usersApi } from '/js/api.js'
+
+    await requireAuth({ adminOnly: true })
+    renderNav('/users')
+    document.getElementById('btn-logout').onclick = logout
+    load()
+
+    async function load() {
+      const content = document.getElementById('content')
+      try {
+        const res = await usersApi.list()
+        const list = res.data || []
+        content.innerHTML = `<table class="data-table"><thead>
+          <tr><th>Email</th><th>ຊື່</th><th>Role</th><th>ສະຖານະ</th><th>ຈັດການ</th></tr>
+        </thead><tbody>${list.map(u => `<tr>
+          <td>${esc(u.email)}</td>
+          <td>${esc(u.full_name)}</td>
+          <td>
+            <select data-id="${u.id}" class="role-select" ${!u.is_active ? 'disabled' : ''}>
+              <option value="user" ${u.role === 'user' ? 'selected' : ''}>user</option>
+              <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>admin</option>
+            </select>
+          </td>
+          <td>${u.is_active ? '✓ ໃຊ້ງານ' : 'ປິດແລ້ວ'}</td>
+          <td>
+            ${u.is_active ? `<button type="button" class="danger" data-id="${u.id}" style="padding:0.25rem 0.5rem;font-size:0.8rem">ປິດບັນຊີ</button>` : '—'}
+          </td>
+        </tr>`).join('')}</tbody></table>`
+
+        content.querySelectorAll('.role-select').forEach(sel => {
+          sel.onchange = async () => {
+            try {
+              await usersApi.setRole(sel.dataset.id, sel.value)
+            } catch (e) {
+              alert(e.message)
+              load()
+            }
+          }
+        })
+        content.querySelectorAll('button[data-id]').forEach(btn => {
+          btn.onclick = async () => {
+            if (!confirm('ປິດບັນຊີນີ້?')) return
+            try {
+              await usersApi.disable(btn.dataset.id)
+              load()
+            } catch (e) {
+              alert(e.message)
+            }
+          }
+        })
+      } catch (e) {
+        content.innerHTML = `<p class="error-msg">${e.message}</p>`
+      }
+    }
+
+    function esc(s) {
+      const d = document.createElement('div')
+      d.textContent = s ?? ''
+      return d.innerHTML
+    }
+  </script>
+</body>
+
+</html>

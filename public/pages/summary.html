@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="lo">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ສະຫຼຸບເດືອນ — ຕາຕາລາງເວນພະຍາບານ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Lao:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <header class="app-header">
+    <h1>ສະຫຼຸບເດືອນ</h1>
+    <nav class="nav-links" id="app-nav"></nav>
+    <div>
+      <span class="user-badge" id="user-info"></span>
+      <button type="button" class="secondary" id="btn-logout" style="margin-left:0.5rem;padding:0.3rem 0.6rem;font-size:0.8rem">ອອກ</button>
+    </div>
+  </header>
+  <main>
+    <div class="card">
+      <div class="form-row">
+        <div>
+          <label for="sel-year">ປີ</label>
+          <input type="number" id="sel-year" min="2020" max="2035" style="width:90px">
+        </div>
+        <div>
+          <label for="sel-month">ເດືອນ</label>
+          <select id="sel-month"></select>
+        </div>
+        <button type="button" id="btn-load">ໂຫຼດສະຫຼຸບ</button>
+      </div>
+      <h2 class="page-title" id="page-title"></h2>
+      <div id="content"><p class="loading">ກຳລັງໂຫຼດ...</p></div>
+    </div>
+  </main>
+  <script type="module">
+    import { requireAuth, renderNav, logout } from '/js/auth.js'
+    import { scheduleApi } from '/js/api.js'
+
+    const MONTHS_LA = ['','ມັງກອນ','ກຸມພາ','ມີນາ','ເມສາ','ພຶດສະພາ','ມິຖຸນາ','ກໍລະກົດ','ສິງຫາ','ກັນຍາ','ຕຸລາ','ພະຈິກ','ທັນວາ']
+    let shiftTypes = []
+
+    await requireAuth()
+    renderNav('/summary')
+    document.getElementById('btn-logout').onclick = logout
+
+    const selMonth = document.getElementById('sel-month')
+    const now = new Date()
+    for (let m = 1; m <= 12; m++) {
+      const o = document.createElement('option')
+      o.value = m
+      o.textContent = `${m} — ${MONTHS_LA[m]}`
+      selMonth.appendChild(o)
+    }
+    document.getElementById('sel-year').value = now.getFullYear()
+    selMonth.value = now.getMonth() + 1
+
+    const stRes = await scheduleApi.shiftTypes()
+    shiftTypes = (stRes.data || []).map(t => t.code)
+
+    document.getElementById('btn-load').onclick = load
+    load()
+
+    async function load() {
+      const year = parseInt(document.getElementById('sel-year').value, 10)
+      const month = parseInt(selMonth.value, 10)
+      const content = document.getElementById('content')
+      content.innerHTML = '<p class="loading">ກຳລັງໂຫຼດ...</p>'
+      document.getElementById('page-title').textContent =
+        `ສະຫຼຸບຈຳນວນເວນ ເດືອນ ${MONTHS_LA[month]} ${year}`
+
+      try {
+        const res = await scheduleApi.summary(year, month)
+        const rows = res.data || []
+        const allCodes = new Set(shiftTypes)
+        rows.forEach(r => Object.keys(r.counts || {}).forEach(c => allCodes.add(c)))
+        const codes = [...allCodes].sort()
+
+        if (!rows.length) {
+          content.innerHTML = '<p class="empty-state">ບໍ່ມີຂໍ້ມູນ</p>'
+          return
+        }
+
+        let html = '<div style="overflow:auto"><table class="data-table summary-table"><thead><tr><th>ຊື່</th>'
+        codes.forEach(c => { html += `<th>${c}</th>` })
+        html += '<th>ລວມ</th></tr></thead><tbody>'
+
+        for (const row of rows) {
+          let total = 0
+          html += `<tr><td>${esc(row.name)}</td>`
+          for (const c of codes) {
+            const n = row.counts?.[c] || 0
+            total += n
+            html += `<td style="text-align:center">${n || '—'}</td>`
+          }
+          html += `<td style="text-align:center;font-weight:600">${total}</td></tr>`
+        }
+        html += '</tbody></table></div>'
+        content.innerHTML = html
+      } catch (e) {
+        content.innerHTML = `<p class="error-msg">${e.message}</p>`
+      }
+    }
+
+    function esc(s) {
+      const d = document.createElement('div')
+      d.textContent = s ?? ''
+      return d.innerHTML
+    }
+  </script>
+</body>
+</html>

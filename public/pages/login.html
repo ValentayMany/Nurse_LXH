@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="lo">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ເຂົ້າສູ່ລະບົບ — ຕາຕາລາງເວນພະຍາບານ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Lao:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body class="login-page">
+  <div class="login-card">
+    <div style="text-align:center;margin-bottom:1.75rem">
+      <div style="font-size:2rem;margin-bottom:0.5rem">🏥</div>
+      <h1>ເຂົ້າສູ່ລະບົບ</h1>
+      <p class="login-sub">ລະບົບຕາຕາລາງເວນພະຍາບານ — Luckxay Hospital</p>
+    </div>
+    <form id="login-form">
+      <label for="email">Email</label>
+      <input type="email" id="email" name="email" required autocomplete="username" placeholder="admin@hospital.la">
+      <label for="password" style="margin-top:0.25rem">Password</label>
+      <input type="password" id="password" name="password" required autocomplete="current-password" placeholder="••••••••">
+      <button type="submit" id="btn-submit" style="margin-top:0.5rem;justify-content:center">
+        <span id="btn-text">ເຂົ້າສູ່ລະບົບ</span>
+      </button>
+      <p class="error-msg" id="error" hidden></p>
+    </form>
+  </div>
+  <script type="module">
+    import { authApi } from '/js/api.js'
+
+    const params = new URLSearchParams(location.search)
+    const next = params.get('next') || '/'
+
+    try {
+      await authApi.me()
+      location.href = next
+    } catch { /* not logged in */ }
+
+    document.getElementById('login-form').onsubmit = async (e) => {
+      e.preventDefault()
+      const btn = document.getElementById('btn-submit')
+      const btnText = document.getElementById('btn-text')
+      const errEl = document.getElementById('error')
+      errEl.hidden = true
+      btn.disabled = true
+      btnText.textContent = 'ກຳລັງເຂົ້າສູ່ລະບົບ...'
+      try {
+        await authApi.login(
+          document.getElementById('email').value.trim(),
+          document.getElementById('password').value
+        )
+        location.href = next
+      } catch (err) {
+        const msg = err.message || ''
+        errEl.textContent =
+          msg.includes('fetch') || msg.includes('Failed')
+            ? 'ເຊື່ອມ Supabase ບໍ່ໄດ້ — ກວດ .env ແລ້ວ restart server'
+            : (msg || 'Email ຫຼື Password ບໍ່ຖືກຕ້ອງ')
+        errEl.hidden = false
+      } finally {
+        btn.disabled = false
+        btnText.textContent = 'ເຂົ້າສູ່ລະບົບ'
+      }
+    }
+  </script>
+</body>
+</html>

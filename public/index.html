@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="lo">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ຕາຕາລາງເວນພະຍາບານ — Luckxay Hospital</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Lao:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <header class="app-header">
+    <h1>ລະບົບຕາຕາລາງເວນພະຍາບານ</h1>
+    <nav class="nav-links" id="app-nav"></nav>
+    <div>
+      <span class="user-badge" id="user-info"></span>
+      <button type="button" class="secondary" id="btn-logout" style="margin-left:0.5rem;padding:0.3rem 0.6rem;font-size:0.8rem">ອອກ</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="card">
+      <div class="form-row">
+        <div>
+          <label for="sel-year">ປີ</label>
+          <input type="number" id="sel-year" min="2020" max="2035" style="width:90px">
+        </div>
+        <div>
+          <label for="sel-month">ເດືອນ</label>
+          <select id="sel-month"></select>
+        </div>
+        <button type="button" id="btn-load">ໂຫຼດຕາຕາລາງ</button>
+        <a href="/pages/import-help.html" class="btn secondary" id="btn-import-help" style="text-decoration:none;display:none">📥 Import Excel</a>
+      </div>
+      <p class="readonly-hint" id="edit-hint"></p>
+      <h2 class="page-title" id="page-title">ຕາຕາລາງປະຈຳການ</h2>
+      <div class="legend" id="legend"></div>
+      <div class="schedule-wrap" id="grid-wrap">
+        <p class="loading">ກຳລັງໂຫຼດ...</p>
+      </div>
+    </div>
+  </main>
+
+  <script type="module">
+    import { requireAuth, renderNav, isAdmin, logout } from '/js/auth.js'
+    import { scheduleApi } from '/js/api.js'
+    import { daysInMonth, getWeekdayIndex, shiftColor, countByDay, WEEKDAY_EN } from '/js/schedule-utils.js'
+    import { openShiftPicker } from '/js/shift-picker.js'
+
+    const MONTHS_LA = ['','ມັງກອນ','ກຸມພາ','ມີນາ','ເມສາ','ພຶດສະພາ','ມິຖຸນາ','ກໍລະກົດ','ສິງຫາ','ກັນຍາ','ຕຸລາ','ພະຈິກ','ທັນວາ']
+    const SUMMARY_CODES = ['M', 'E', 'EN', 'N', 'B/S', 'AL']
+
+    let shiftTypes = []
+    let shiftMap = new Map()
+    let scheduleData = []
+    let days = 30
+    let year = new Date().getFullYear()
+    let month = new Date().getMonth() + 1
+
+    await requireAuth()
+    renderNav('/')
+    document.getElementById('btn-logout').onclick = logout
+
+    const selMonth = document.getElementById('sel-month')
+    for (let m = 1; m <= 12; m++) {
+      const o = document.createElement('option')
+      o.value = m
+      o.textContent = `${m} — ${MONTHS_LA[m]}`
+      selMonth.appendChild(o)
+    }
+    document.getElementById('sel-year').value = year
+    selMonth.value = month
+
+    document.getElementById('edit-hint').textContent = isAdmin()
+      ? 'ກົດທີ່ຊ່ອງເວນເພື່ອເລືອກ / ແກ້ໄຂເວນ (Admin)'
+      : 'ກົດຊ່ອງວ່າງເພື່ອໃສ່ເວນ — ຊ່ອງທີ່ມີເວນແລ້ວ ສະເພາະ Admin ແກ້ໄຂໄດ້'
+    if (isAdmin()) document.getElementById('btn-import-help').style.display = 'inline-flex'
+
+    document.getElementById('btn-load').onclick = loadAll
+    selMonth.onchange = loadAll
+    document.getElementById('sel-year').onchange = loadAll
+
+    async function loadShiftTypes() {
+      const res = await scheduleApi.shiftTypes()
+      shiftTypes = res.data || []
+      shiftMap = new Map(shiftTypes.map(t => [t.code, t]))
+      renderLegend()
+    }
+
+    function renderLegend() {
+      const el = document.getElementById('legend')
+      el.innerHTML = shiftTypes.map(t => {
+        const time = t.start_time && t.end_time
+          ? `${fmtTime(t.start_time)} – ${fmtTime(t.end_time)}`
+          : ''
+        return `<div class="legend-item">
+          <span class="legend-swatch" style="background:${t.color_hex}">${t.code}</span>
+          <span><strong>${t.name_lao || t.name}</strong> ${time}</span>
+        </div>`
+      }).join('')
+    }
+
+    function fmtTime(t) {
+      if (!t) return ''
+      const [h, m] = String(t).split(':')
+      const hr = parseInt(h, 10)
+      const ampm = hr >= 12 ? 'PM' : 'AM'
+      const h12 = hr % 12 || 12
+      return `${h12}:${m || '00'}${ampm}`
+    }
+
+    async function loadAll() {
+      year = parseInt(document.getElementById('sel-year').value, 10)
+      month = parseInt(selMonth.value, 10)
+      const wrap = document.getElementById('grid-wrap')
+      wrap.innerHTML = '<p class="loading">ກຳລັງໂຫຼດ...</p>'
+
+      try {
+        const res = await scheduleApi.month(year, month)
+        scheduleData = res.data || []
+        days = res.daysInMonth || daysInMonth(year, month)
+        document.getElementById('page-title').textContent =
+          `ຕາຕາລາງປະຈຳການເດືອນ ${String(month).padStart(2,'0')}/${year} — ພະແນກ ພະຍາບານ`
+        renderGrid()
+      } catch (e) {
+        wrap.innerHTML = `<p class="error-msg">${e.message}</p>`
+      }
+    }
+
+    function renderGrid() {
+      const counts = countByDay(scheduleData, days, SUMMARY_CODES)
+      let html = '<table class="schedule-grid"><thead><tr>'
+      html += '<th class="col-no">ລ/ດ</th><th class="col-name">ຊື່ ແລະ ນາມສະກຸນ</th>'
+      for (let d = 1; d <= days; d++) {
+        const wd = getWeekdayIndex(year, month, d)
+        const weekend = wd === 0 || wd === 6
+        html += `<th class="${weekend ? 'weekend' : ''}">${WEEKDAY_EN[wd]}</th>`
+      }
+      html += '</tr><tr><th class="col-no"></th><th class="col-name"></th>'
+      for (let d = 1; d <= days; d++) {
+        const weekend = [0, 6].includes(getWeekdayIndex(year, month, d))
+        html += `<th class="${weekend ? 'weekend' : ''}">${d}</th>`
+      }
+      html += '</tr></thead><tbody>'
+
+      scheduleData.forEach((row, i) => {
+        html += `<tr><td class="col-no">${i + 1}</td><td class="col-name">${esc(row.name)}</td>`
+        for (let d = 1; d <= days; d++) {
+          const code = row.shifts?.[d] || ''
+          const weekend = [0, 6].includes(getWeekdayIndex(year, month, d))
+          // admin: ทุกช่อง | user: เฉพาะช่องว่าง
+          const canEdit = isAdmin() || !code
+          const cls = ['shift-cell', weekend ? 'weekend' : '', canEdit ? 'editable' : '', code ? '' : 'empty-cell'].filter(Boolean).join(' ')
+          const bg = code ? shiftColor(shiftMap, code) : ''
+          const style = bg ? `background:${bg}` : ''
+          html += `<td class="${cls}" style="${style}" data-staff="${row.id}" data-day="${d}" title="${code}">${esc(code)}</td>`
+        }
+        html += '</tr>'
+      })
+
+
+      html += '</tbody></table>'
+      const wrap = document.getElementById('grid-wrap')
+      wrap.innerHTML = html
+
+      // admin + user ต่างก็คลิก .editable ได้ (editable ถูก set ตาม canEdit ด้านบนแล้ว)
+      wrap.querySelectorAll('.shift-cell.editable').forEach(cell => {
+        cell.addEventListener('click', () => onCellClick(cell))
+      })
+    }
+
+    function onCellClick(cell) {
+      const staffId = parseInt(cell.dataset.staff, 10)
+      const day = parseInt(cell.dataset.day, 10)
+      const current = cell.textContent.trim()
+      const row = scheduleData.find(r => r.id === staffId)
+
+      openShiftPicker({
+        shiftTypes,
+        currentCode: current,
+        day,
+        staffName: row?.name,
+        allowClear: isAdmin(), // ปุ่มลบเวนเห็นได้เฉพาะ admin
+        onSelect: async (shiftCode) => {
+          try {
+            await scheduleApi.shift({ staffId, year, month, day, shiftCode })
+            await loadAll()
+          } catch (e) {
+            alert(e.message)
+          }
+        }
+      })
+    }
+
+    function esc(s) {
+      const d = document.createElement('div')
+      d.textContent = s ?? ''
+      return d.innerHTML
+    }
+
+    await loadShiftTypes()
+    await loadAll()
+  </script>
+</body>
+</html>

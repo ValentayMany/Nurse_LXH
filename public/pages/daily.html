@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="lo">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ເວນປະຈຳວັນ — ຕາຕາລາງເວນພະຍາບານ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Lao:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <header class="app-header">
+    <h1>ເວນປະຈຳວັນ</h1>
+    <nav class="nav-links" id="app-nav"></nav>
+    <div>
+      <span class="user-badge" id="user-info"></span>
+      <button type="button" class="secondary" id="btn-logout" style="margin-left:0.5rem;padding:0.3rem 0.6rem;font-size:0.8rem">ອອກ</button>
+    </div>
+  </header>
+  <main>
+    <div class="card">
+      <div class="form-row">
+        <div>
+          <label for="sel-year">ປີ</label>
+          <input type="number" id="sel-year" min="2020" max="2035" style="width:90px">
+        </div>
+        <div>
+          <label for="sel-month">ເດືອນ</label>
+          <select id="sel-month"></select>
+        </div>
+        <div>
+          <label for="sel-day">ວັນ</label>
+          <input type="number" id="sel-day" min="1" max="31" style="width:70px">
+        </div>
+        <button type="button" id="btn-load">ດູເວນວັນນີ້</button>
+        <button type="button" class="secondary" id="btn-today">ມື້ນີ້</button>
+      </div>
+      <h2 class="page-title" id="page-title"></h2>
+      <div id="content"><p class="loading">ກຳລັງໂຫຼດ...</p></div>
+    </div>
+  </main>
+  <script type="module">
+    import { requireAuth, renderNav, logout } from '/js/auth.js'
+    import { scheduleApi } from '/js/api.js'
+    import { daysInMonth } from '/js/schedule-utils.js'
+
+    const MONTHS_LA = ['','ມັງກອນ','ກຸມພາ','ມີນາ','ເມສາ','ພຶດສະພາ','ມິຖຸນາ','ກໍລະກົດ','ສິງຫາ','ກັນຍາ','ຕຸລາ','ພະຈິກ','ທັນວາ']
+    const now = new Date()
+    let year = now.getFullYear()
+    let month = now.getMonth() + 1
+    let day = now.getDate()
+
+    await requireAuth()
+    renderNav('/daily')
+    document.getElementById('btn-logout').onclick = logout
+
+    const selMonth = document.getElementById('sel-month')
+    for (let m = 1; m <= 12; m++) {
+      const o = document.createElement('option')
+      o.value = m
+      o.textContent = `${m} — ${MONTHS_LA[m]}`
+      selMonth.appendChild(o)
+    }
+    document.getElementById('sel-year').value = year
+    selMonth.value = month
+    document.getElementById('sel-day').value = day
+
+    document.getElementById('btn-today').onclick = () => {
+      const n = new Date()
+      document.getElementById('sel-year').value = n.getFullYear()
+      selMonth.value = n.getMonth() + 1
+      document.getElementById('sel-day').value = n.getDate()
+      load()
+    }
+    document.getElementById('btn-load').onclick = load
+
+    async function load() {
+      year = parseInt(document.getElementById('sel-year').value, 10)
+      month = parseInt(selMonth.value, 10)
+      day = parseInt(document.getElementById('sel-day').value, 10)
+      const max = daysInMonth(year, month)
+      if (day < 1 || day > max) {
+        alert(`ວັນທີຕ້ອງຢູ່ໃນ 1–${max}`)
+        return
+      }
+
+      const content = document.getElementById('content')
+      content.innerHTML = '<p class="loading">ກຳລັງໂຫຼດ...</p>'
+      document.getElementById('page-title').textContent =
+        `ເວນວັນທີ ${String(day).padStart(2,'0')}/${String(month).padStart(2,'0')}/${year}`
+
+      try {
+        const res = await scheduleApi.daily(year, month, day)
+        const summary = res.summary || {}
+        const keys = Object.keys(summary)
+        if (!keys.length) {
+          content.innerHTML = '<p class="empty-state">ບໍ່ມີເວນສຳລັບວັນນີ້</p>'
+          return
+        }
+        content.innerHTML = '<div class="shift-groups">' + keys.map(code => {
+          const g = summary[code]
+          const staff = (g.staff || []).map(n => `<li>${esc(n)}</li>`).join('')
+          return `<div class="shift-group" style="border-color:${g.color || '#1565c0'}">
+            <h3><span style="color:${g.color}">${code}</span> — ${esc(g.nameLao || code)} (${(g.staff||[]).length} ຄົນ)</h3>
+            <ul>${staff || '<li>—</li>'}</ul>
+          </div>`
+        }).join('') + '</div>'
+      } catch (e) {
+        content.innerHTML = `<p class="error-msg">${e.message}</p>`
+      }
+    }
+
+    function esc(s) {
+      const d = document.createElement('div')
+      d.textContent = s ?? ''
+      return d.innerHTML
+    }
+
+    load()
+  </script>
+</body>
+</html>

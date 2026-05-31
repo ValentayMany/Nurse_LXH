@@ -1,3 +1,4 @@
+const API_URL = 'https://nurse-lxh.onrender.com'
 /** @param {string} path @param {RequestInit} [options] */
 export async function api(path, options = {}) {
   const headers = { ...options.headers }
